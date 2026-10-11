@@ -1,0 +1,66 @@
+# Blueprint do Render: banco PostgreSQL, API (este repositório) e frontend (sg2ri-frontend).
+# Uso: Render Dashboard → New → Blueprint → selecione o repositório sg2ri-backend.
+# Variáveis com "sync: false" são pedidas no momento da criação (veja o README, seção Deploy).
+
+databases:
+  - name: sg2ri-db
+    plan: free
+    region: virginia
+    databaseName: sg2ri
+    user: sg2ri
+    postgresMajorVersion: "16"
+
+services:
+  - type: web
+    name: sg2ri-api
+    runtime: node
+    plan: free
+    region: virginia
+    branch: main
+    # NODE_ENV=production faria o npm omitir as devDependencies (tsc, prisma, tsx),
+    # necessárias para compilar, migrar e rodar o seed.
+    buildCommand: npm ci --include=dev && npx prisma generate && npm run build
+    # No plano free não há pre-deploy command: migrations e seed (idempotente) rodam na inicialização.
+    startCommand: npm run prisma:deploy && npm run db:seed && npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: sg2ri-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 8h
+      - key: APP_TIMEZONE
+        value: America/Sao_Paulo
+      # URL pública do frontend, ex.: https://sg2ri-web.onrender.com (várias separadas por vírgula).
+      - key: CORS_ORIGIN
+        sync: false
+      - key: ADMIN_NAME
+        value: Administrador
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+
+  - type: web
+    name: sg2ri-web
+    runtime: static
+    repo: https://github.com/rene-andrade/sg2ri-frontend
+    branch: main
+    buildCommand: npm ci && npm run build
+    staticPublishPath: ./dist
+    # SPA: qualquer rota do React Router devolve o index.html.
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      # URL pública da API, ex.: https://sg2ri-api.onrender.com/api
+      - key: VITE_API_URL
+        sync: false

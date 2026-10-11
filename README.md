@@ -142,6 +142,41 @@ Na devolução com condição `DANIFICADO`, a descrição da avaria é obrigató
 
 Os envios acontecem depois da operação e nunca a fazem falhar. Erros vão para o log.
 
+## Deploy no Render
+
+O arquivo [`render.yaml`](render.yaml) é um Blueprint que cria três recursos no plano gratuito, na região Virginia:
+
+| Recurso | Tipo | Origem |
+|---|---|---|
+| `sg2ri-db` | PostgreSQL 16 | gerenciado pelo Render |
+| `sg2ri-api` | Web Service (Node 22) | este repositório |
+| `sg2ri-web` | Static Site | `rene-andrade/sg2ri-frontend` |
+
+### Passo a passo
+
+1. No [Render Dashboard](https://dashboard.render.com), clique em **New → Blueprint**, conecte o GitHub e selecione o repositório `sg2ri-backend`. O Render precisa de acesso aos dois repositórios.
+2. Preencha as variáveis pedidas:
+
+   | Variável | Serviço | Valor |
+   |---|---|---|
+   | `CORS_ORIGIN` | sg2ri-api | `https://sg2ri-web.onrender.com` |
+   | `ADMIN_EMAIL` | sg2ri-api | e-mail do administrador inicial |
+   | `ADMIN_PASSWORD` | sg2ri-api | senha forte, com 8 ou mais caracteres e diferente de `admin1234` |
+   | `VITE_API_URL` | sg2ri-web | `https://sg2ri-api.onrender.com/api` |
+
+   As URLs seguem o padrão `https://<nome-do-serviço>.onrender.com`. Se o Render acrescentar um sufixo ao nome (por exemplo, `sg2ri-api-x1y2`), corrija as duas variáveis em **Environment** com as URLs reais. Depois, faça um redeploy do `sg2ri-web`, porque a URL da API entra no build.
+3. Clique em **Apply**. O `JWT_SECRET` é gerado automaticamente e o `DATABASE_URL` vem do banco criado.
+4. A cada inicialização, a API aplica as migrations pendentes (`prisma migrate deploy`) e roda o seed. O seed é idempotente: cria o administrador só na primeira vez.
+5. Para conferir, abra `https://sg2ri-api.onrender.com/api/health` e `.../api/docs`.
+
+Para ativar o envio de e-mails (RF06), adicione as variáveis `SMTP_*` e `MAIL_FROM` ao `sg2ri-api`. Sem elas, as notificações só aparecem nos logs.
+
+### Limitações do plano gratuito
+
+- **A API hiberna** depois de 15 minutos sem acesso. A primeira requisição seguinte leva cerca de 1 minuto para responder.
+- **O PostgreSQL gratuito expira 30 dias depois de criado.** Antes disso, faça backup ou mude para um plano pago.
+- **Não há pre-deploy command**, por isso as migrations rodam no comando de inicialização.
+
 ## Testes
 
 ```bash

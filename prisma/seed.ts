@@ -13,14 +13,19 @@ async function main() {
   const senha = process.env.ADMIN_PASSWORD ?? 'admin1234';
   const name = process.env.ADMIN_NAME ?? 'Administrador';
 
-  if (senha.length < 8) {
-    throw new Error('ADMIN_PASSWORD deve ter no mínimo 8 caracteres.');
-  }
-
   const existente = await prisma.usuario.findUnique({ where: { email } });
   if (existente) {
     console.log(`Administrador ${email} já existe — nada a fazer.`);
     return;
+  }
+
+  // Em produção a senha padrão de desenvolvimento nunca é usada.
+  if (process.env.NODE_ENV === 'production' && (!process.env.ADMIN_PASSWORD || senha === 'admin1234')) {
+    throw new Error('Defina ADMIN_PASSWORD (diferente de "admin1234") para criar o administrador em produção.');
+  }
+
+  if (senha.length < 8) {
+    throw new Error('ADMIN_PASSWORD deve ter no mínimo 8 caracteres.');
   }
 
   await prisma.usuario.create({
