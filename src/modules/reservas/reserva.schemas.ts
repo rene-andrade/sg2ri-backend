@@ -50,6 +50,10 @@ export const DisponibilidadeSchema = z
         'available: sem conflitos; priority: só conflita com pedidos pendentes de alunos e o solicitante é professor (RN02); unavailable: há conflito.',
     }),
     conflitos: z.array(ReservaSchema),
+    sugestoes: z.array(z.object({ horaInicio: z.string(), horaFim: z.string() })).meta({
+      description:
+        'Quando unavailable: até 3 horários livres no mesmo dia, com a mesma duração, mais próximos do pedido (caso de uso, fluxo 4a).',
+    }),
   })
   .meta({ id: 'Disponibilidade' });
 

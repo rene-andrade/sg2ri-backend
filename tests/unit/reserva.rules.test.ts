@@ -6,6 +6,7 @@ import {
   filtrarConflitos,
   gerarCodigoReserva,
   intervalosSobrepoem,
+  sugerirHorarios,
   validarSolicitacao,
 } from '../../src/modules/reservas/reserva.rules.js';
 import { BusinessRuleError } from '../../src/errors/index.js';
@@ -187,5 +188,39 @@ describe('gerarCodigoReserva', () => {
     const b = gerarCodigoReserva('2026-09-10');
     expect(a).toMatch(/^RES-20260910-[0-9A-F]{8}$/);
     expect(a).not.toBe(b);
+  });
+});
+
+describe('sugerirHorarios (fluxo 4a)', () => {
+  const aprovada = (horaInicio: string, horaFim: string) => ({ horaInicio, horaFim, status: StatusReserva.APROVADA });
+
+  it('sugere inícios livres da grade, com a mesma duração, do mais próximo ao mais distante', () => {
+    const sugestoes = sugerirHorarios({
+      intervalo: { horaInicio: '09:20', horaFim: '11:00' },
+      ocupadas: [aprovada('09:20', '11:00'), aprovada('07:30', '09:10')],
+    });
+    expect(sugestoes).toEqual([
+      { horaInicio: '11:10', horaFim: '12:50' },
+      { horaInicio: '13:30', horaFim: '15:10' },
+      { horaInicio: '15:20', horaFim: '17:00' },
+    ]);
+  });
+
+  it('ignora reservas que não ocupam o horário e respeita o fim da grade', () => {
+    const sugestoes = sugerirHorarios({
+      intervalo: { horaInicio: '19:00', horaFim: '22:30' },
+      ocupadas: [aprovada('20:50', '22:30'), { horaInicio: '17:10', horaFim: '18:50', status: StatusReserva.CANCELADA }],
+      limite: 10,
+    });
+    expect(sugestoes.map((s) => s.horaInicio)).toEqual(['17:10', '15:20', '13:30', '11:10', '09:20', '07:30']);
+  });
+
+  it('aplica o filtro do chamador', () => {
+    const sugestoes = sugerirHorarios({
+      intervalo: { horaInicio: '09:20', horaFim: '11:00' },
+      ocupadas: [aprovada('09:20', '11:00')],
+      aceitar: (c) => c.horaInicio >= '13:00',
+    });
+    expect(sugestoes[0]).toEqual({ horaInicio: '13:30', horaFim: '15:10' });
   });
 });

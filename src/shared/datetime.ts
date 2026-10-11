@@ -17,6 +17,13 @@ export function horaParaMinutos(hhmm: string): number {
   return h * 60 + m;
 }
 
+/** Minutos desde 00:00 → "HH:mm". */
+export function minutosParaHora(minutos: number): string {
+  const h = Math.floor(minutos / 60);
+  const m = minutos % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
 /** "YYYY-MM-DD" → Date em UTC meia-noite (formato usado pelas colunas @db.Date). */
 export function dataISOParaDate(dataISO: string): Date {
   return new Date(`${dataISO}T00:00:00.000Z`);

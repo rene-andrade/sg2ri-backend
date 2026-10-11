@@ -21,6 +21,14 @@ export const reservaController = {
     );
   },
 
+  async devolucoesPendentes(_req: Request, res: Response) {
+    res.json(await reservaService.listarDevolucoesPendentes());
+  },
+
+  async notificarDevolucoesPendentes(_req: Request, res: Response) {
+    res.json(await reservaService.notificarDevolucoesPendentes());
+  },
+
   async obter(req: Request, res: Response) {
     res.json(await reservaService.obter(idDe(req)));
   },

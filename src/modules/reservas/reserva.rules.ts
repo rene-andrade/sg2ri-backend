@@ -7,9 +7,16 @@ import { Role, StatusItem, StatusReserva, TipoItem, Turno } from '@prisma/client
 import { BusinessRuleError } from '../../errors/index.js';
 import {
   ANTECEDENCIA_MIN_EQUIPAMENTO_HORAS,
+  HORARIOS_PADRAO,
   RN01_MAX_HORAS_ALUNO_SALA,
 } from '../../shared/constants.js';
-import { duracaoEmHoras, horaParaMinutos, minutosEntre, type MomentoLocal } from '../../shared/datetime.js';
+import {
+  duracaoEmHoras,
+  horaParaMinutos,
+  minutosEntre,
+  minutosParaHora,
+  type MomentoLocal,
+} from '../../shared/datetime.js';
 
 export type StatusDisponibilidade = 'available' | 'priority' | 'unavailable';
 
@@ -71,6 +78,35 @@ export function avaliarDisponibilidade(params: {
     conflitos.every((r) => r.status === StatusReserva.PENDENTE && r.usuarioRole === Role.ALUNO);
 
   return prioridadeDocente ? 'priority' : 'unavailable';
+}
+
+/**
+ * Caso de uso "Efetuar Reserva", fluxo 4a: sugere horários livres próximos ao pedido.
+ * Candidatos são os inícios da grade padrão, com a mesma duração do pedido, que não
+ * ultrapassam o fim da grade nem conflitam com as reservas que ocupam o dia.
+ * O filtro `aceitar` permite ao chamador descartar horários que violem outras regras
+ * (horário passado, antecedência). Ordenados pela proximidade com o início pedido.
+ */
+export function sugerirHorarios(params: {
+  intervalo: Intervalo;
+  ocupadas: (Intervalo & { status: StatusReserva })[];
+  aceitar?: (candidato: Intervalo) => boolean;
+  limite?: number;
+}): Intervalo[] {
+  const { intervalo, ocupadas, aceitar = () => true, limite = 3 } = params;
+  const inicioPedido = horaParaMinutos(intervalo.horaInicio);
+  const duracao = horaParaMinutos(intervalo.horaFim) - inicioPedido;
+  const fimDaGrade = Math.max(...HORARIOS_PADRAO.map((h) => horaParaMinutos(h.split(' - ')[1]!)));
+
+  return HORARIOS_PADRAO.map((h) => horaParaMinutos(h.split(' - ')[0]!))
+    .filter((inicio) => inicio !== inicioPedido && inicio + duracao <= fimDaGrade)
+    .map((inicio) => ({ horaInicio: minutosParaHora(inicio), horaFim: minutosParaHora(inicio + duracao) }))
+    .filter((candidato) => filtrarConflitos(ocupadas, candidato).length === 0 && aceitar(candidato))
+    .sort(
+      (a, b) =>
+        Math.abs(horaParaMinutos(a.horaInicio) - inicioPedido) - Math.abs(horaParaMinutos(b.horaInicio) - inicioPedido),
+    )
+    .slice(0, limite);
 }
 
 /**

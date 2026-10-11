@@ -36,6 +36,8 @@ A documentação interativa fica em **http://localhost:3000/api/docs**, e o JSON
 | `CORS_ORIGIN` | Origens permitidas, separadas por vírgula | `http://localhost:5173` |
 | `APP_TIMEZONE` | Fuso usado nas regras de data e hora | `America/Sao_Paulo` |
 | `ADMIN_NAME` / `ADMIN_EMAIL` / `ADMIN_PASSWORD` | Administrador criado pelo seed | `admin@sg2ri.edu.br` / `admin1234` |
+| `SMTP_HOST` / `SMTP_PORT` / `SMTP_SECURE` / `SMTP_USER` / `SMTP_PASS` | Servidor de e-mail das notificações. Sem `SMTP_HOST`, as mensagens só aparecem no log | opcional (`587`, `false`) |
+| `MAIL_FROM` | Remetente das notificações | `SG2RI <no-reply@sg2ri.edu.br>` |
 
 ### Scripts
 
@@ -83,7 +85,9 @@ tests/               unit/ · http/ (sem banco) · integration/ (PostgreSQL)
 | POST, PUT, DELETE | `/itens`, `/itens/:id` | ADMIN | Cadastra, atualiza e exclui |
 | GET | `/reservas` | autenticado | Lista (filtros `status`, `itemId`, `data`, `dataInicio`, `dataFim`) |
 | GET | `/reservas/minhas` | autenticado | Reservas do usuário logado |
-| GET | `/reservas/disponibilidade` | autenticado | `available` / `priority` / `unavailable` e os conflitos |
+| GET | `/reservas/disponibilidade` | autenticado | `available` / `priority` / `unavailable`, os conflitos e sugestões de horário |
+| GET | `/reservas/devolucoes-pendentes` | ADMIN | Reservas retiradas cujo período terminou sem devolução |
+| POST | `/reservas/devolucoes-pendentes/notificar` | ADMIN | Envia o alerta de devolução pendente por e-mail |
 | POST | `/reservas` | autenticado | Solicita uma reserva |
 | GET | `/reservas/:id` | autenticado | Detalha |
 | PATCH | `/reservas/:id/cancelar` | dono ou ADMIN | Cancela uma reserva pendente |
@@ -118,7 +122,7 @@ Ao solicitar uma reserva, a API verifica:
 3. **Equipamentos** exigem **24 horas de antecedência**.
 4. **RN01**: alunos reservam **salas** por no máximo **2 horas**.
 5. A quantidade de pessoas não pode exceder a capacidade do item.
-6. **Conflito de horário**: uma reserva PENDENTE ou APROVADA sobreposta no mesmo item e data bloqueia a solicitação (409).
+6. **Conflito de horário**: uma reserva PENDENTE ou APROVADA sobreposta no mesmo item e data bloqueia a solicitação (409). A resposta traz em `details.sugestoes` até 3 horários livres no mesmo dia, com a mesma duração, partindo dos inícios da grade padrão e mais próximos do pedido (fluxo alternativo 4a).
 7. **RN02**: professores têm prioridade em **equipamentos**. Se todos os conflitos forem pedidos **pendentes de alunos**, a reserva é criada com `prioridadeDocente: true`. Quando o administrador a aprova, os pedidos conflitantes dos alunos são **recusados automaticamente**. Reservas já aprovadas nunca são reabertas.
 
 As operações de criação e aprovação rodam em transação, com um lock por item e data (`pg_advisory_xact_lock`). Assim, duas solicitações simultâneas não conseguem ocupar o mesmo horário.
@@ -129,6 +133,14 @@ Transições de status permitidas:
 - APROVADA → check-in (`retiradoEm`) → check-out (`devolvidoEm`, `condicaoDevolucao`)
 
 Na devolução com condição `DANIFICADO`, a descrição da avaria é obrigatória.
+
+## Notificações por e-mail (RF06)
+
+- **Nova solicitação**: os administradores ativos recebem um aviso.
+- **Aprovação ou recusa**: o solicitante recebe o parecer. Isso inclui os pedidos recusados automaticamente pela RN02.
+- **Devolução pendente**: `POST /reservas/devolucoes-pendentes/notificar` avisa cada responsável. Pode ser acionado pelo painel ou por um agendador externo (cron job).
+
+Os envios acontecem depois da operação e nunca a fazem falhar. Erros vão para o log.
 
 ## Testes
 

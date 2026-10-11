@@ -136,6 +136,7 @@ describe.skipIf(!habilitado)('integração (PostgreSQL)', async () => {
       const conflito = await novaReserva('aluno', { itemId: itens.lab, data: emDias(7), horaInicio: '10:00', horaFim: '11:30' });
       expect(conflito.status).toBe(409);
       expect(conflito.body.code).toBe('CONFLITO_HORARIO');
+      expect(conflito.body.details.sugestoes[0]).toEqual({ horaInicio: '11:10', horaFim: '12:40' });
 
       const aprovada = await request(app).patch(`/api/reservas/${id}/aprovar`).set(auth('admin')).send({});
       expect(aprovada.body).toMatchObject({ status: 'APROVADA', observacaoAdmin: 'Aprovado pela administração.' });

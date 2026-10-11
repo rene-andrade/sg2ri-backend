@@ -24,6 +24,12 @@ reservaRoutes.get('/', validate({ query: ListarReservasQuerySchema }), reservaCo
 reservaRoutes.get('/minhas', reservaController.minhas);
 reservaRoutes.get('/disponibilidade', validate({ query: DisponibilidadeQuerySchema }), reservaController.disponibilidade);
 reservaRoutes.post('/', validate({ body: CriarReservaSchema }), reservaController.criar);
+reservaRoutes.get('/devolucoes-pendentes', somenteAdmin, reservaController.devolucoesPendentes);
+reservaRoutes.post(
+  '/devolucoes-pendentes/notificar',
+  somenteAdmin,
+  reservaController.notificarDevolucoesPendentes,
+);
 
 reservaRoutes.get('/:id', validate({ params: zIdParams }), reservaController.obter);
 reservaRoutes.patch('/:id/cancelar', validate({ params: zIdParams }), reservaController.cancelar);

@@ -312,7 +312,9 @@ export function buildOpenApiDocument() {
           description:
             'Regras aplicadas: item ATIVO; data/hora futura; fim > início; equipamentos com 24h de antecedência; ' +
             'RN01 (aluno reserva sala por no máximo 2h); conflito de horário com RN02 (professor tem prioridade ' +
-            'sobre pedidos pendentes de alunos em equipamentos — a reserva é criada com `prioridadeDocente: true`).',
+            'sobre pedidos pendentes de alunos em equipamentos — a reserva é criada com `prioridadeDocente: true`). ' +
+            'Em conflito (409), `details.sugestoes` traz horários livres próximos no mesmo dia. ' +
+            'A administração é notificada por e-mail (RF06).',
           body: 'CriarReservaRequest',
           resposta: { status: 201, descricao: 'Reserva criada como PENDENTE.', schema: ref('Reserva') },
           erros: [404, 409, 422],
@@ -330,8 +332,24 @@ export function buildOpenApiDocument() {
           tag: 'Reservas',
           summary: 'Verifica a disponibilidade de um item em um horário',
           query: DisponibilidadeQuerySchema,
-          resposta: { status: 200, descricao: 'Situação e conflitos.', schema: ref('Disponibilidade') },
+          resposta: { status: 200, descricao: 'Situação, conflitos e sugestões de horário.', schema: ref('Disponibilidade') },
           erros: [404],
+        }),
+      },
+      '/reservas/devolucoes-pendentes': {
+        get: op({
+          tag: 'Reservas',
+          summary: 'Reservas retiradas cujo período terminou sem devolução',
+          perfis: ADMIN,
+          resposta: { status: 200, descricao: 'Lista de reservas.', schema: lista('Reserva') },
+        }),
+      },
+      '/reservas/devolucoes-pendentes/notificar': {
+        post: op({
+          tag: 'Reservas',
+          summary: 'Envia por e-mail o alerta de devolução pendente (RF06)',
+          perfis: ADMIN,
+          resposta: { status: 200, descricao: '`{ total, enviadas, falhas }`.' },
         }),
       },
       '/reservas/{id}': {

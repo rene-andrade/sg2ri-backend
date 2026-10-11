@@ -1,4 +1,4 @@
-import { Role, StatusReserva, type Prisma } from '@prisma/client';
+import { Role, StatusReserva, type Item, type Prisma } from '@prisma/client';
 import { prisma } from '../../lib/prisma.js';
 import { env } from '../../config/env.js';
 import {
@@ -7,13 +7,15 @@ import {
   ForbiddenError,
   NotFoundError,
 } from '../../errors/index.js';
-import { agoraNoFuso, dataISOParaDate, dateParaDataISO } from '../../shared/datetime.js';
+import { agoraNoFuso, dataISOParaDate, dateParaDataISO, minutosEntre } from '../../shared/datetime.js';
+import { notificacaoService } from '../notificacoes/notificacao.service.js';
 import { reservaInclude, toReservaDTO } from './reserva.mapper.js';
 import {
   avaliarDisponibilidade,
   derivarTurno,
   filtrarConflitos,
   gerarCodigoReserva,
+  sugerirHorarios,
   validarSolicitacao,
   type Intervalo,
 } from './reserva.rules.js';
@@ -39,15 +41,9 @@ async function bloquearAgenda(tx: Tx, itemId: string, data: string) {
   await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`${itemId}:${data}`}))`;
 }
 
-/** Reservas que ocupam o horário (PENDENTE/APROVADA) do mesmo item e data. */
-async function buscarConflitos(
-  db: Tx | typeof prisma,
-  itemId: string,
-  data: string,
-  intervalo: Intervalo,
-  ignorarId?: string,
-) {
-  const reservasDoDia = await db.reserva.findMany({
+/** Reservas que ocupam a agenda (PENDENTE/APROVADA) do item na data. */
+async function buscarOcupacaoDoDia(db: Tx | typeof prisma, itemId: string, data: string, ignorarId?: string) {
+  return db.reserva.findMany({
     where: {
       itemId,
       data: dataISOParaDate(data),
@@ -57,7 +53,48 @@ async function buscarConflitos(
     include: reservaInclude,
     orderBy: { horaInicio: 'asc' },
   });
-  return filtrarConflitos(reservasDoDia, intervalo);
+}
+
+/** Reservas que ocupam o horário (PENDENTE/APROVADA) do mesmo item e data. */
+async function buscarConflitos(
+  db: Tx | typeof prisma,
+  itemId: string,
+  data: string,
+  intervalo: Intervalo,
+  ignorarId?: string,
+) {
+  return filtrarConflitos(await buscarOcupacaoDoDia(db, itemId, data, ignorarId), intervalo);
+}
+
+/** Fluxo 4a: horários livres no mesmo dia que também passariam nas demais regras do pedido. */
+function sugestoesPara(
+  ocupadas: Awaited<ReturnType<typeof buscarOcupacaoDoDia>>,
+  item: Item,
+  pedido: { data: string; horaInicio: string; horaFim: string; quantidadePessoas?: number | null },
+  solicitante: Solicitante,
+) {
+  const agora = agoraNoFuso(env.APP_TIMEZONE);
+  return sugerirHorarios({
+    intervalo: pedido,
+    ocupadas,
+    aceitar: (candidato) => {
+      try {
+        validarSolicitacao({
+          role: solicitante.role,
+          tipoItem: item.tipo,
+          statusItem: item.status,
+          capacidadeItem: item.capacidade,
+          data: pedido.data,
+          quantidadePessoas: pedido.quantidadePessoas,
+          agora,
+          ...candidato,
+        });
+        return true;
+      } catch {
+        return false;
+      }
+    },
+  });
 }
 
 async function buscarOuFalhar(db: Tx | typeof prisma, id: string) {
@@ -111,13 +148,15 @@ export const reservaService = {
     const item = await prisma.item.findUnique({ where: { id: query.itemId } });
     if (!item) throw new NotFoundError('Item não encontrado.');
 
-    const conflitos = await buscarConflitos(prisma, query.itemId, query.data, query);
+    const ocupadas = await buscarOcupacaoDoDia(prisma, query.itemId, query.data);
+    const conflitos = filtrarConflitos(ocupadas, query);
     const status = avaliarDisponibilidade({
       role: solicitante.role,
       tipoItem: item.tipo,
       conflitos: conflitos.map((c) => ({ status: c.status, usuarioRole: c.usuario.role })),
     });
-    return { status, conflitos: conflitos.map(toReservaDTO) };
+    const sugestoes = status === 'unavailable' ? sugestoesPara(ocupadas, item, query, solicitante) : [];
+    return { status, conflitos: conflitos.map(toReservaDTO), sugestoes };
   },
 
   async criar(dados: CriarReservaDTO, solicitante: Solicitante) {
@@ -139,7 +178,8 @@ export const reservaService = {
         agora: agoraNoFuso(env.APP_TIMEZONE),
       });
 
-      const conflitos = await buscarConflitos(tx, dados.itemId, dados.data, dados);
+      const ocupadas = await buscarOcupacaoDoDia(tx, dados.itemId, dados.data);
+      const conflitos = filtrarConflitos(ocupadas, dados);
       const disponibilidade = avaliarDisponibilidade({
         role: solicitante.role,
         tipoItem: item.tipo,
@@ -149,7 +189,10 @@ export const reservaService = {
         throw new ConflictError(
           'O recurso não está disponível no horário selecionado. Ajuste a data ou o horário.',
           'CONFLITO_HORARIO',
-          { conflitos: conflitos.map((c) => ({ codigo: c.codigo, horario: `${c.horaInicio} - ${c.horaFim}`, status: c.status })) },
+          {
+            conflitos: conflitos.map((c) => ({ codigo: c.codigo, horario: `${c.horaInicio} - ${c.horaFim}`, status: c.status })),
+            sugestoes: sugestoesPara(ocupadas, item, dados, solicitante),
+          },
         );
       }
 
@@ -169,10 +212,13 @@ export const reservaService = {
         include: reservaInclude,
       });
     });
-    return toReservaDTO(reserva);
+    const dto = toReservaDTO(reserva);
+    notificacaoService.reservaSolicitada(dto);
+    return dto;
   },
 
   async aprovar(id: string, { observacaoAdmin }: AprovarReservaDTO) {
+    let recusadasPorPrioridade: string[] = [];
     const reserva = await prisma.$transaction(async (tx) => {
       const atual = await buscarOuFalhar(tx, id);
       const data = dateParaDataISO(atual.data);
@@ -203,6 +249,7 @@ export const reservaService = {
             where: { id: { in: pendentesDeAlunos } },
             data: { status: StatusReserva.RECUSADA, observacaoAdmin: MOTIVO_RECUSA_RN02 },
           });
+          recusadasPorPrioridade = pendentesDeAlunos;
         }
       }
 
@@ -215,7 +262,16 @@ export const reservaService = {
         include: reservaInclude,
       });
     });
-    return toReservaDTO(reserva);
+    const dto = toReservaDTO(reserva);
+    notificacaoService.parecerReserva(dto);
+    if (recusadasPorPrioridade.length > 0) {
+      const recusadas = await prisma.reserva.findMany({
+        where: { id: { in: recusadasPorPrioridade } },
+        include: reservaInclude,
+      });
+      for (const r of recusadas) notificacaoService.parecerReserva(toReservaDTO(r));
+    }
+    return dto;
   },
 
   async recusar(id: string, { motivoRecusa }: RecusarReservaDTO) {
@@ -229,7 +285,9 @@ export const reservaService = {
       },
       include: reservaInclude,
     });
-    return toReservaDTO(reserva);
+    const dto = toReservaDTO(reserva);
+    notificacaoService.parecerReserva(dto);
+    return dto;
   },
 
   async cancelar(id: string, solicitante: Solicitante) {
@@ -244,6 +302,33 @@ export const reservaService = {
       include: reservaInclude,
     });
     return toReservaDTO(reserva);
+  },
+
+  /** Reservas retiradas (check-in) cujo período terminou sem devolução registrada. */
+  async listarDevolucoesPendentes() {
+    const agora = agoraNoFuso(env.APP_TIMEZONE);
+    const emUso = await prisma.reserva.findMany({
+      where: {
+        status: StatusReserva.APROVADA,
+        retiradoEm: { not: null },
+        devolvidoEm: null,
+        data: { lte: dataISOParaDate(agora.data) },
+      },
+      include: reservaInclude,
+      orderBy: [{ data: 'asc' }, { horaFim: 'asc' }],
+    });
+    return emUso
+      .filter((r) => minutosEntre(agora, { data: dateParaDataISO(r.data), hora: r.horaFim }) < 0)
+      .map(toReservaDTO);
+  },
+
+  /** RF06: envia o alerta de devolução pendente a cada responsável. */
+  async notificarDevolucoesPendentes() {
+    const pendentes = await reservaService.listarDevolucoesPendentes();
+    const resultados = await Promise.allSettled(pendentes.map((r) => notificacaoService.devolucaoPendente(r)));
+    const falhas = resultados.filter((r) => r.status === 'rejected');
+    for (const f of falhas) console.error('[e-mail] falha ao notificar devolução pendente:', f.reason);
+    return { total: pendentes.length, enviadas: pendentes.length - falhas.length, falhas: falhas.length };
   },
 
   /** Check-in: registra a retirada/início de uso de uma reserva aprovada. */

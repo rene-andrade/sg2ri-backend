@@ -183,3 +183,21 @@ describe('validação de payloads', () => {
     expect(res.body.message).toBe('As senhas não coincidem.');
   });
 });
+
+describe('devoluções pendentes', () => {
+  it('somente administradores consultam ou notificam', async () => {
+    const lista = await request(app).get('/api/reservas/devolucoes-pendentes').set('Authorization', bearer(usuarios.aluno));
+    const notificar = await request(app)
+      .post('/api/reservas/devolucoes-pendentes/notificar')
+      .set('Authorization', bearer(usuarios.aluno));
+    expect(lista.status).toBe(403);
+    expect(notificar.status).toBe(403);
+  });
+
+  it('as novas rotas estão documentadas no OpenAPI', async () => {
+    const res = await request(app).get('/api/docs.json');
+    expect(Object.keys(res.body.paths)).toEqual(
+      expect.arrayContaining(['/reservas/devolucoes-pendentes', '/reservas/devolucoes-pendentes/notificar']),
+    );
+  });
+});
