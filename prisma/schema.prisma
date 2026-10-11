@@ -1,0 +1,106 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  PROFESSOR
+  ALUNO
+}
+
+enum TipoItem {
+  LABORATORIO
+  SALA
+  AUDITORIO
+  EQUIPAMENTO
+}
+
+enum StatusItem {
+  ATIVO
+  MANUTENCAO
+  INATIVO
+}
+
+enum StatusReserva {
+  PENDENTE
+  APROVADA
+  RECUSADA
+  CANCELADA
+}
+
+enum Turno {
+  MANHA
+  TARDE
+  NOITE
+}
+
+enum CondicaoItem {
+  OK
+  DANIFICADO
+}
+
+model Usuario {
+  id         String    @id @default(uuid())
+  name       String
+  email      String    @unique
+  senhaHash  String    @map("senha_hash")
+  role       Role
+  department String    @default("")
+  matricula  String    @default("")
+  avatarUrl  String?   @map("avatar_url")
+  ativo      Boolean   @default(true)
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+  reservas   Reserva[]
+
+  @@map("usuarios")
+}
+
+model Item {
+  id          String     @id @default(uuid())
+  nome        String
+  tipo        TipoItem
+  capacidade  Int
+  localizacao String
+  descricao   String     @default("")
+  status      StatusItem @default(ATIVO)
+  createdAt   DateTime   @default(now()) @map("created_at")
+  updatedAt   DateTime   @updatedAt @map("updated_at")
+  reservas    Reserva[]
+
+  @@map("itens")
+}
+
+model Reserva {
+  id                  String        @id @default(uuid())
+  codigo              String        @unique
+  itemId              String        @map("item_id")
+  item                Item          @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  usuarioId           String        @map("usuario_id")
+  usuario             Usuario       @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
+  data                DateTime      @db.Date
+  horaInicio          String        @map("hora_inicio") @db.VarChar(5)
+  horaFim             String        @map("hora_fim") @db.VarChar(5)
+  turno               Turno
+  finalidade          String
+  quantidadePessoas   Int?          @map("quantidade_pessoas")
+  status              StatusReserva @default(PENDENTE)
+  prioridadeDocente   Boolean       @default(false) @map("prioridade_docente")
+  observacaoAdmin     String?       @map("observacao_admin")
+  retiradoEm          DateTime?     @map("retirado_em")
+  devolvidoEm         DateTime?     @map("devolvido_em")
+  condicaoDevolucao   CondicaoItem? @map("condicao_devolucao")
+  observacaoDevolucao String?       @map("observacao_devolucao")
+  createdAt           DateTime      @default(now()) @map("created_at")
+  updatedAt           DateTime      @updatedAt @map("updated_at")
+
+  @@index([itemId, data])
+  @@index([usuarioId])
+  @@index([status])
+  @@map("reservas")
+}
