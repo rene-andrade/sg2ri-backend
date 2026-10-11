@@ -1,9 +1,9 @@
 import type { Request, Response } from 'express';
-import type { IdParams } from '../../lib/zod.js';
+import type { IntIdParams } from '../../lib/zod.js';
 import { itemService } from './item.service.js';
 import type { ListarItensQuery } from './item.schemas.js';
 
-const idDe = (req: Request) => (req.validated.params as IdParams).id;
+const idDe = (req: Request) => (req.validated.params as IntIdParams).id;
 
 export const itemController = {
   async listar(req: Request, res: Response) {

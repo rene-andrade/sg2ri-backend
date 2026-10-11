@@ -37,12 +37,12 @@ const MOTIVO_RECUSA_RN02 = 'Recusada automaticamente: prioridade docente (RN02).
  * Serializa operações que disputam o mesmo item/data (criação e aprovação),
  * evitando que duas transações concorrentes aprovem horários sobrepostos.
  */
-async function bloquearAgenda(tx: Tx, itemId: string, data: string) {
+async function bloquearAgenda(tx: Tx, itemId: number, data: string) {
   await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`${itemId}:${data}`}))`;
 }
 
 /** Reservas que ocupam a agenda (PENDENTE/APROVADA) do item na data. */
-async function buscarOcupacaoDoDia(db: Tx | typeof prisma, itemId: string, data: string, ignorarId?: string) {
+async function buscarOcupacaoDoDia(db: Tx | typeof prisma, itemId: number, data: string, ignorarId?: number) {
   return db.reserva.findMany({
     where: {
       itemId,
@@ -58,10 +58,10 @@ async function buscarOcupacaoDoDia(db: Tx | typeof prisma, itemId: string, data:
 /** Reservas que ocupam o horário (PENDENTE/APROVADA) do mesmo item e data. */
 async function buscarConflitos(
   db: Tx | typeof prisma,
-  itemId: string,
+  itemId: number,
   data: string,
   intervalo: Intervalo,
-  ignorarId?: string,
+  ignorarId?: number,
 ) {
   return filtrarConflitos(await buscarOcupacaoDoDia(db, itemId, data, ignorarId), intervalo);
 }
@@ -97,7 +97,7 @@ function sugestoesPara(
   });
 }
 
-async function buscarOuFalhar(db: Tx | typeof prisma, id: string) {
+async function buscarOuFalhar(db: Tx | typeof prisma, id: number) {
   const reserva = await db.reserva.findUnique({ where: { id }, include: reservaInclude });
   if (!reserva) throw new NotFoundError('Reserva não encontrada.');
   return reserva;
@@ -140,7 +140,7 @@ export const reservaService = {
     return reservas.map(toReservaDTO);
   },
 
-  async obter(id: string) {
+  async obter(id: number) {
     return toReservaDTO(await buscarOuFalhar(prisma, id));
   },
 
@@ -217,8 +217,8 @@ export const reservaService = {
     return dto;
   },
 
-  async aprovar(id: string, { observacaoAdmin }: AprovarReservaDTO) {
-    let recusadasPorPrioridade: string[] = [];
+  async aprovar(id: number, { observacaoAdmin }: AprovarReservaDTO) {
+    let recusadasPorPrioridade: number[] = [];
     const reserva = await prisma.$transaction(async (tx) => {
       const atual = await buscarOuFalhar(tx, id);
       const data = dateParaDataISO(atual.data);
@@ -274,7 +274,7 @@ export const reservaService = {
     return dto;
   },
 
-  async recusar(id: string, { motivoRecusa }: RecusarReservaDTO) {
+  async recusar(id: number, { motivoRecusa }: RecusarReservaDTO) {
     const atual = await buscarOuFalhar(prisma, id);
     exigirStatus(atual.status, StatusReserva.PENDENTE, 'recusar');
     const reserva = await prisma.reserva.update({
@@ -290,7 +290,7 @@ export const reservaService = {
     return dto;
   },
 
-  async cancelar(id: string, solicitante: Solicitante) {
+  async cancelar(id: number, solicitante: Solicitante) {
     const atual = await buscarOuFalhar(prisma, id);
     if (atual.usuarioId !== solicitante.id && solicitante.role !== Role.ADMIN) {
       throw new ForbiddenError('Você só pode cancelar as suas próprias reservas.');
@@ -332,7 +332,7 @@ export const reservaService = {
   },
 
   /** Check-in: registra a retirada/início de uso de uma reserva aprovada. */
-  async registrarRetirada(id: string) {
+  async registrarRetirada(id: number) {
     const atual = await buscarOuFalhar(prisma, id);
     exigirStatus(atual.status, StatusReserva.APROVADA, 'registrar a retirada de');
     if (atual.retiradoEm) {
@@ -347,7 +347,7 @@ export const reservaService = {
   },
 
   /** Check-out: registra a devolução e a condição do recurso. */
-  async registrarDevolucao(id: string, { condicao, observacao }: DevolucaoDTO) {
+  async registrarDevolucao(id: number, { condicao, observacao }: DevolucaoDTO) {
     const atual = await buscarOuFalhar(prisma, id);
     if (!atual.retiradoEm) {
       throw new BusinessRuleError(

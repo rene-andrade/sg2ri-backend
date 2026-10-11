@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { StatusItem, StatusReserva, TipoItem, Turno } from '@prisma/client';
 import { calcularRelatorioOcupacao } from '../../src/modules/relatorios/relatorio.calculo.js';
 
-const item = (id: string, status: StatusItem = StatusItem.ATIVO) => ({
+const item = (id: number, status: StatusItem = StatusItem.ATIVO) => ({
   id,
   nome: `Item ${id}`,
   tipo: TipoItem.LABORATORIO,
@@ -12,7 +12,7 @@ const item = (id: string, status: StatusItem = StatusItem.ATIVO) => ({
 });
 
 const reserva = (
-  itemId: string,
+  itemId: number,
   horaInicio: string,
   horaFim: string,
   turno: Turno,
@@ -31,12 +31,12 @@ describe('calcularRelatorioOcupacao', () => {
   const relatorio = calcularRelatorioOcupacao({
     dataInicio: '2026-09-07',
     dataFim: '2026-09-13',
-    itens: [item('a'), item('b'), item('c', StatusItem.MANUTENCAO)],
+    itens: [item(1), item(2), item(3, StatusItem.MANUTENCAO)],
     reservasDoPeriodo: [
-      reserva('a', '08:00', '18:00', Turno.MANHA),
-      reserva('a', '19:00', '22:20', Turno.NOITE),
-      reserva('a', '13:00', '15:00', Turno.TARDE, StatusReserva.PENDENTE),
-      reserva('b', '14:00', '17:20', Turno.TARDE, StatusReserva.CANCELADA),
+      reserva(1, '08:00', '18:00', Turno.MANHA),
+      reserva(1, '19:00', '22:20', Turno.NOITE),
+      reserva(1, '13:00', '15:00', Turno.TARDE, StatusReserva.PENDENTE),
+      reserva(2, '14:00', '17:20', Turno.TARDE, StatusReserva.CANCELADA),
     ],
   });
 
@@ -50,17 +50,17 @@ describe('calcularRelatorioOcupacao', () => {
     expect(relatorio.itensIndisponiveis).toBe(1);
     expect(relatorio.totalReservasNoPeriodo).toBe(4);
     expect(relatorio.totalReservasAprovadas).toBe(2);
-    expect(relatorio.porItem.map((i) => i.itemId)).toEqual(['a', 'b']);
+    expect(relatorio.porItem.map((i) => i.itemId)).toEqual([1, 2]);
   });
 
   it('calcula horas, ocupação e ociosidade por item', () => {
-    const a = relatorio.porItem.find((i) => i.itemId === 'a')!;
+    const a = relatorio.porItem.find((i) => i.itemId === 1)!;
     expect(a.totalReservas).toBe(2);
     expect(a.horasOcupadas).toBe(13.3);
     expect(a.taxaOcupacao).toBe(20);
     expect(a.taxaOciosidade).toBe(80);
 
-    const b = relatorio.porItem.find((i) => i.itemId === 'b')!;
+    const b = relatorio.porItem.find((i) => i.itemId === 2)!;
     expect(b.taxaOcupacao).toBe(0);
     expect(relatorio.mediaOcupacaoGeral).toBe(10);
   });
@@ -77,8 +77,8 @@ describe('calcularRelatorioOcupacao', () => {
     const cheio = calcularRelatorioOcupacao({
       dataInicio: '2026-09-12',
       dataFim: '2026-09-12', // sábado: sem dias úteis → base mínima de 1 dia
-      itens: [item('a')],
-      reservasDoPeriodo: [reserva('a', '00:00', '23:59', Turno.MANHA)],
+      itens: [item(1)],
+      reservasDoPeriodo: [reserva(1, '00:00', '23:59', Turno.MANHA)],
     });
     expect(cheio.porItem[0]!.taxaOcupacao).toBe(100);
   });

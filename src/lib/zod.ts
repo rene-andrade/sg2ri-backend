@@ -20,11 +20,18 @@ export const zDataISO = () =>
 export const zHora = () =>
   z.string().regex(HORA_REGEX, 'Horário inválido. Use o formato HH:mm.').meta({ example: '07:30' });
 
-/** Identificador UUID em parâmetros de rota. */
+/** Identificador UUID (usuários). */
 export const zId = () => z.uuid('Identificador inválido.');
 
 export const zIdParams = z.object({ id: zId() });
 export type IdParams = z.infer<typeof zIdParams>;
+
+/** Identificador inteiro sequencial (itens e reservas); aceita "12" vindo de rota ou query. */
+export const zIntId = () =>
+  z.coerce.number('Identificador inválido.').int('Identificador inválido.').positive('Identificador inválido.');
+
+export const zIntIdParams = z.object({ id: zIntId() });
+export type IntIdParams = z.infer<typeof zIntIdParams>;
 
 /** Booleano vindo de query string ("true"/"false"). */
 export const zQueryBoolean = () =>

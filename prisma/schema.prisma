@@ -62,7 +62,7 @@ model Usuario {
 }
 
 model Item {
-  id          String     @id @default(uuid())
+  id          Int        @id @default(autoincrement())
   nome        String
   tipo        TipoItem
   capacidade  Int
@@ -77,9 +77,9 @@ model Item {
 }
 
 model Reserva {
-  id                  String        @id @default(uuid())
+  id                  Int           @id @default(autoincrement())
   codigo              String        @unique
-  itemId              String        @map("item_id")
+  itemId              Int           @map("item_id")
   item                Item          @relation(fields: [itemId], references: [id], onDelete: Restrict)
   usuarioId           String        @map("usuario_id")
   usuario             Usuario       @relation(fields: [usuarioId], references: [id], onDelete: Restrict)

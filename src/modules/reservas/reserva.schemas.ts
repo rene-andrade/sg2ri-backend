@@ -1,5 +1,5 @@
 import { CondicaoItem, Role, StatusReserva, TipoItem, Turno } from '@prisma/client';
-import { z, zDataISO, zHora, zId } from '../../lib/zod.js';
+import { z, zDataISO, zHora, zIntId } from '../../lib/zod.js';
 import { horaParaMinutos } from '../../shared/datetime.js';
 
 const zStatusReserva = () =>
@@ -15,9 +15,9 @@ const horarioCoerente = (d: { horaInicio: string; horaFim: string }) =>
 // ── Respostas ────────────────────────────────────────────────────────────────
 export const ReservaSchema = z
   .object({
-    id: z.uuid(),
+    id: z.number().int(),
     codigo: z.string().meta({ example: 'RES-20260910-3F9A1C2B' }),
-    itemId: z.uuid(),
+    itemId: z.number().int(),
     itemNome: z.string(),
     itemTipo: z.enum(TipoItem),
     usuarioId: z.uuid(),
@@ -61,7 +61,7 @@ export const DisponibilidadeSchema = z
 export const ListarReservasQuerySchema = z
   .object({
     status: zStatusReserva().optional(),
-    itemId: zId().optional(),
+    itemId: zIntId().optional(),
     data: zDataISO().optional(),
     dataInicio: zDataISO().optional(),
     dataFim: zDataISO().optional(),
@@ -73,13 +73,13 @@ export const ListarReservasQuerySchema = z
 export type ListarReservasQuery = z.infer<typeof ListarReservasQuerySchema>;
 
 export const DisponibilidadeQuerySchema = z
-  .object({ itemId: zId(), data: zDataISO(), horaInicio: zHora(), horaFim: zHora() })
+  .object({ itemId: zIntId(), data: zDataISO(), horaInicio: zHora(), horaFim: zHora() })
   .refine(horarioCoerente, fimAposInicio);
 export type DisponibilidadeQuery = z.infer<typeof DisponibilidadeQuerySchema>;
 
 export const CriarReservaSchema = z
   .object({
-    itemId: zId(),
+    itemId: zIntId(),
     data: zDataISO(),
     horaInicio: zHora(),
     horaFim: zHora(),

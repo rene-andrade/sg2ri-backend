@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { Role } from '@prisma/client';
 import { authenticate, authorize } from '../../middlewares/auth.js';
 import { validate } from '../../middlewares/validate.js';
-import { zIdParams } from '../../lib/zod.js';
+import { zIntIdParams } from '../../lib/zod.js';
 import { reservaController } from './reserva.controller.js';
 import {
   AprovarReservaSchema,
@@ -31,24 +31,24 @@ reservaRoutes.post(
   reservaController.notificarDevolucoesPendentes,
 );
 
-reservaRoutes.get('/:id', validate({ params: zIdParams }), reservaController.obter);
-reservaRoutes.patch('/:id/cancelar', validate({ params: zIdParams }), reservaController.cancelar);
+reservaRoutes.get('/:id', validate({ params: zIntIdParams }), reservaController.obter);
+reservaRoutes.patch('/:id/cancelar', validate({ params: zIntIdParams }), reservaController.cancelar);
 reservaRoutes.patch(
   '/:id/aprovar',
   somenteAdmin,
-  validate({ params: zIdParams, body: AprovarReservaSchema }),
+  validate({ params: zIntIdParams, body: AprovarReservaSchema }),
   reservaController.aprovar,
 );
 reservaRoutes.patch(
   '/:id/recusar',
   somenteAdmin,
-  validate({ params: zIdParams, body: RecusarReservaSchema }),
+  validate({ params: zIntIdParams, body: RecusarReservaSchema }),
   reservaController.recusar,
 );
-reservaRoutes.patch('/:id/retirada', somenteAdmin, validate({ params: zIdParams }), reservaController.retirada);
+reservaRoutes.patch('/:id/retirada', somenteAdmin, validate({ params: zIntIdParams }), reservaController.retirada);
 reservaRoutes.patch(
   '/:id/devolucao',
   somenteAdmin,
-  validate({ params: zIdParams, body: DevolucaoSchema }),
+  validate({ params: zIntIdParams, body: DevolucaoSchema }),
   reservaController.devolucao,
 );

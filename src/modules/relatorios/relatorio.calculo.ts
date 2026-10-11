@@ -9,7 +9,7 @@ import { contarDiasUteis, duracaoEmHoras, duracaoHorario } from '../../shared/da
 type ItemRelatorio = Pick<Item, 'id' | 'nome' | 'tipo' | 'localizacao' | 'capacidade' | 'status'>;
 
 interface ReservaRelatorio {
-  itemId: string;
+  itemId: number;
   turno: Turno;
   status: StatusReserva;
   horaInicio: string;

@@ -33,7 +33,7 @@ export const RelatorioOcupacaoSchema = z
     ),
     porItem: z.array(
       z.object({
-        itemId: z.uuid(),
+        itemId: z.number().int(),
         nome: z.string(),
         tipo: z.enum(TipoItem),
         localizacao: z.string(),

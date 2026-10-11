@@ -1,10 +1,10 @@
 import type { Request, Response } from 'express';
 import { usuarioAtual } from '../../middlewares/auth.js';
-import type { IdParams } from '../../lib/zod.js';
+import type { IntIdParams } from '../../lib/zod.js';
 import { reservaService } from './reserva.service.js';
 import type { DisponibilidadeQuery, ListarReservasQuery } from './reserva.schemas.js';
 
-const idDe = (req: Request) => (req.validated.params as IdParams).id;
+const idDe = (req: Request) => (req.validated.params as IntIdParams).id;
 
 export const reservaController = {
   async listar(req: Request, res: Response) {

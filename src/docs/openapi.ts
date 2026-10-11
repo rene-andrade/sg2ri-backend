@@ -38,12 +38,13 @@ function queryParams(schema: ZodType) {
   }));
 }
 
-const idParam = {
+/** Usuários usam UUID; itens e reservas, inteiros sequenciais. */
+const idParam = (tipo: 'uuid' | 'int') => ({
   name: 'id',
   in: 'path',
   required: true,
-  schema: { type: 'string', format: 'uuid' },
-};
+  schema: tipo === 'uuid' ? { type: 'string', format: 'uuid' } : { type: 'integer', minimum: 1 },
+});
 
 const respostasErro = {
   400: 'Dados inválidos (validação).',
@@ -61,7 +62,7 @@ interface Operacao {
   description?: string;
   publica?: boolean;
   perfis?: string[];
-  path?: boolean;
+  path?: 'uuid' | 'int';
   query?: ZodType;
   body?: string;
   resposta?: { status: number; descricao: string; schema?: JsonSchema };
@@ -85,7 +86,7 @@ function op(o: Operacao) {
     summary: o.summary,
     ...(descricao ? { description: descricao } : {}),
     ...(o.publica ? { security: [] } : {}),
-    parameters: [...(o.path ? [idParam] : []), ...(o.query ? queryParams(o.query) : [])],
+    parameters: [...(o.path ? [idParam(o.path)] : []), ...(o.query ? queryParams(o.query) : [])],
     ...(o.body
       ? { requestBody: { required: true, content: { 'application/json': { schema: ref(o.body) } } } }
       : {}),
@@ -224,7 +225,7 @@ export function buildOpenApiDocument() {
           tag: 'Usuários',
           summary: 'Detalha usuário',
           perfis: ADMIN,
-          path: true,
+          path: 'uuid',
           resposta: { status: 200, descricao: 'Usuário.', schema: ref('Usuario') },
         }),
         put: op({
@@ -232,7 +233,7 @@ export function buildOpenApiDocument() {
           summary: 'Atualiza usuário',
           description: 'Senha em branco ou omitida mantém a atual.',
           perfis: ADMIN,
-          path: true,
+          path: 'uuid',
           body: 'AtualizarUsuarioRequest',
           resposta: { status: 200, descricao: 'Usuário atualizado.', schema: ref('Usuario') },
           erros: [409, 422],
@@ -241,7 +242,7 @@ export function buildOpenApiDocument() {
           tag: 'Usuários',
           summary: 'Exclui usuário sem reservas',
           perfis: ADMIN,
-          path: true,
+          path: 'uuid',
           resposta: { status: 204, descricao: 'Usuário excluído.' },
           erros: [409, 422],
         }),
@@ -251,7 +252,7 @@ export function buildOpenApiDocument() {
           tag: 'Usuários',
           summary: 'Ativa/inativa o acesso do usuário',
           perfis: ADMIN,
-          path: true,
+          path: 'uuid',
           resposta: { status: 200, descricao: 'Usuário com o novo status.', schema: ref('Usuario') },
           erros: [422],
         }),
@@ -277,14 +278,14 @@ export function buildOpenApiDocument() {
         get: op({
           tag: 'Itens',
           summary: 'Detalha item',
-          path: true,
+          path: 'int',
           resposta: { status: 200, descricao: 'Item.', schema: ref('Item') },
         }),
         put: op({
           tag: 'Itens',
           summary: 'Atualiza item',
           perfis: ADMIN,
-          path: true,
+          path: 'int',
           body: 'SalvarItemRequest',
           resposta: { status: 200, descricao: 'Item atualizado.', schema: ref('Item') },
         }),
@@ -292,7 +293,7 @@ export function buildOpenApiDocument() {
           tag: 'Itens',
           summary: 'Exclui item sem reservas',
           perfis: ADMIN,
-          path: true,
+          path: 'int',
           resposta: { status: 204, descricao: 'Item excluído.' },
           erros: [409],
         }),
@@ -356,7 +357,7 @@ export function buildOpenApiDocument() {
         get: op({
           tag: 'Reservas',
           summary: 'Detalha reserva',
-          path: true,
+          path: 'int',
           resposta: { status: 200, descricao: 'Reserva.', schema: ref('Reserva') },
         }),
       },
@@ -368,7 +369,7 @@ export function buildOpenApiDocument() {
             'Falha com 409 se houver reserva aprovada no mesmo horário. Ao aprovar um pedido com prioridade docente, ' +
             'os pedidos pendentes de alunos conflitantes são recusados automaticamente (RN02).',
           perfis: ADMIN,
-          path: true,
+          path: 'int',
           body: 'AprovarReservaRequest',
           resposta: { status: 200, descricao: 'Reserva aprovada.', schema: ref('Reserva') },
           erros: [409, 422],
@@ -379,7 +380,7 @@ export function buildOpenApiDocument() {
           tag: 'Reservas',
           summary: 'Recusa uma reserva pendente',
           perfis: ADMIN,
-          path: true,
+          path: 'int',
           body: 'RecusarReservaRequest',
           resposta: { status: 200, descricao: 'Reserva recusada.', schema: ref('Reserva') },
           erros: [422],
@@ -390,7 +391,7 @@ export function buildOpenApiDocument() {
           tag: 'Reservas',
           summary: 'Cancela uma reserva pendente',
           description: 'Permitido ao dono da reserva ou a um administrador.',
-          path: true,
+          path: 'int',
           resposta: { status: 200, descricao: 'Reserva cancelada.', schema: ref('Reserva') },
           erros: [403, 422],
         }),
@@ -400,7 +401,7 @@ export function buildOpenApiDocument() {
           tag: 'Reservas',
           summary: 'Registra o check-in (retirada) de uma reserva aprovada',
           perfis: ADMIN,
-          path: true,
+          path: 'int',
           resposta: { status: 200, descricao: 'Reserva em uso.', schema: ref('Reserva') },
           erros: [422],
         }),
@@ -410,7 +411,7 @@ export function buildOpenApiDocument() {
           tag: 'Reservas',
           summary: 'Registra o check-out (devolução) e a condição do recurso',
           perfis: ADMIN,
-          path: true,
+          path: 'int',
           body: 'DevolucaoRequest',
           resposta: { status: 200, descricao: 'Reserva concluída.', schema: ref('Reserva') },
           erros: [422],

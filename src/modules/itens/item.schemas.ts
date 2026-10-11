@@ -7,7 +7,7 @@ const zStatus = () => z.enum(StatusItem, `Status inválido. Use ${Object.values(
 // ── Respostas ────────────────────────────────────────────────────────────────
 export const ItemSchema = z
   .object({
-    id: z.uuid(),
+    id: z.number().int(),
     nome: z.string(),
     tipo: z.enum(TipoItem),
     capacidade: z.number().int(),

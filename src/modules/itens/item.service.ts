@@ -4,7 +4,7 @@ import { ConflictError, NotFoundError } from '../../errors/index.js';
 import { toItemDTO } from './item.mapper.js';
 import type { ListarItensQuery, SalvarItemDTO } from './item.schemas.js';
 
-async function buscarOuFalhar(id: string) {
+async function buscarOuFalhar(id: number) {
   const item = await prisma.item.findUnique({ where: { id } });
   if (!item) throw new NotFoundError('Item não encontrado.');
   return item;
@@ -23,7 +23,7 @@ export const itemService = {
     return itens.map(toItemDTO);
   },
 
-  async obter(id: string) {
+  async obter(id: number) {
     return toItemDTO(await buscarOuFalhar(id));
   },
 
@@ -31,12 +31,12 @@ export const itemService = {
     return toItemDTO(await prisma.item.create({ data: dados }));
   },
 
-  async atualizar(id: string, dados: SalvarItemDTO) {
+  async atualizar(id: number, dados: SalvarItemDTO) {
     await buscarOuFalhar(id);
     return toItemDTO(await prisma.item.update({ where: { id }, data: dados }));
   },
 
-  async excluir(id: string) {
+  async excluir(id: number) {
     await buscarOuFalhar(id);
     const reservas = await prisma.reserva.count({ where: { itemId: id } });
     if (reservas > 0) {

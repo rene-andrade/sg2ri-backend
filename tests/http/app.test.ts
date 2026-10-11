@@ -110,7 +110,7 @@ describe('autorização por perfil', () => {
     ['get', '/api/usuarios'],
     ['post', '/api/itens'],
     ['get', '/api/relatorios/ocupacao?dataInicio=2026-09-01&dataFim=2026-09-30'],
-    ['patch', '/api/reservas/44444444-4444-4444-8444-444444444444/aprovar'],
+    ['patch', '/api/reservas/44/aprovar'],
   ] as const)('aluno em %s %s → 403', async (metodo, url) => {
     const res = await request(app)[metodo](url).set('Authorization', bearer(usuarios.aluno));
     expect(res.status).toBe(403);
@@ -135,7 +135,7 @@ describe('validação de payloads', () => {
       .post('/api/reservas')
       .set('Authorization', bearer(usuarios.aluno))
       .send({
-        itemId: '55555555-5555-4555-8555-555555555555',
+        itemId: 55,
         data: '2026-02-30',
         horaInicio: '10:00',
         horaFim: '09:00',
@@ -150,7 +150,7 @@ describe('validação de payloads', () => {
   it('horário invertido é rejeitado quando o restante é válido', async () => {
     const res = await request(app)
       .get('/api/reservas/disponibilidade')
-      .query({ itemId: '55555555-5555-4555-8555-555555555555', data: '2026-09-10', horaInicio: '10:00', horaFim: '09:00' })
+      .query({ itemId: 55, data: '2026-09-10', horaInicio: '10:00', horaFim: '09:00' })
       .set('Authorization', bearer(usuarios.aluno));
     expect(res.status).toBe(400);
     expect(res.body.details[0]).toEqual({
@@ -161,7 +161,7 @@ describe('validação de payloads', () => {
 
   it('devolução danificada exige descrição da avaria', async () => {
     const res = await request(app)
-      .patch('/api/reservas/44444444-4444-4444-8444-444444444444/devolucao')
+      .patch('/api/reservas/44/devolucao')
       .set('Authorization', bearer(usuarios.admin))
       .send({ condicao: 'DANIFICADO' });
     expect(res.status).toBe(400);
@@ -169,7 +169,19 @@ describe('validação de payloads', () => {
   });
 
   it('id de rota inválido → 400', async () => {
-    const res = await request(app).get('/api/itens/123').set('Authorization', bearer(usuarios.admin));
+    const res = await request(app).get('/api/itens/abc').set('Authorization', bearer(usuarios.admin));
+    expect(res.status).toBe(400);
+    expect(res.body.details[0].campo).toBe('params.id');
+  });
+
+  it.each(['0', '-3', '1.5'])('itens e reservas exigem id inteiro positivo (%s → 400)', async (id) => {
+    const res = await request(app).get(`/api/reservas/${id}`).set('Authorization', bearer(usuarios.admin));
+    expect(res.status).toBe(400);
+    expect(res.body.details[0]).toEqual({ campo: 'params.id', mensagem: 'Identificador inválido.' });
+  });
+
+  it('usuários continuam exigindo UUID', async () => {
+    const res = await request(app).get('/api/usuarios/123').set('Authorization', bearer(usuarios.admin));
     expect(res.status).toBe(400);
     expect(res.body.details[0].campo).toBe('params.id');
   });
