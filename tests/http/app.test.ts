@@ -55,7 +55,15 @@ describe('infraestrutura', () => {
     expect(res.status).toBe(200);
     expect(res.body.openapi).toBe('3.1.0');
     expect(Object.keys(res.body.paths)).toEqual(
-      expect.arrayContaining(['/auth/login', '/usuarios', '/itens', '/reservas', '/relatorios/ocupacao']),
+      expect.arrayContaining([
+        '/auth/login',
+        '/auth/esqueci-senha',
+        '/auth/redefinir-senha',
+        '/usuarios',
+        '/itens',
+        '/reservas',
+        '/relatorios/ocupacao',
+      ]),
     );
     expect(res.body.components.schemas).toHaveProperty('Reserva');
     expect(JSON.stringify(res.body)).not.toContain('"$id"');

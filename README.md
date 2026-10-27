@@ -34,10 +34,12 @@ A documentação interativa fica em **http://localhost:3000/api/docs**, e o JSON
 | `JWT_EXPIRES_IN` | Validade do token | `8h` |
 | `PORT` | Porta HTTP | `3000` |
 | `CORS_ORIGIN` | Origens permitidas, separadas por vírgula | `http://localhost:5173` |
+| `FRONTEND_URL` | URL do frontend usada nos links de e-mail (redefinição de senha) | primeira origem de `CORS_ORIGIN` |
 | `APP_TIMEZONE` | Fuso usado nas regras de data e hora | `America/Sao_Paulo` |
 | `ADMIN_NAME` / `ADMIN_EMAIL` / `ADMIN_PASSWORD` | Administrador criado pelo seed | `admin@sg2ri.edu.br` / `admin1234` |
-| `SMTP_HOST` / `SMTP_PORT` / `SMTP_SECURE` / `SMTP_USER` / `SMTP_PASS` | Servidor de e-mail das notificações. Sem `SMTP_HOST`, as mensagens só aparecem no log | opcional (`587`, `false`) |
-| `MAIL_FROM` | Remetente das notificações | `SG2RI <no-reply@sg2ri.edu.br>` |
+| `BREVO_API_KEY` | Chave da API do Brevo para enviar os e-mails. Tem prioridade sobre o SMTP | opcional |
+| `SMTP_HOST` / `SMTP_PORT` / `SMTP_SECURE` / `SMTP_USER` / `SMTP_PASS` | Servidor SMTP, alternativa ao Brevo. Sem Brevo nem `SMTP_HOST`, as mensagens só aparecem no log | opcional (`587`, `false`) |
+| `MAIL_FROM` | Remetente das notificações. Com o Brevo, precisa ser um remetente verificado na conta | `SG2RI <no-reply@sg2ri.edu.br>` |
 
 ### Scripts
 
@@ -75,6 +77,8 @@ tests/               unit/ · http/ (sem banco) · integration/ (PostgreSQL)
 |---|---|---|---|
 | POST | `/auth/login` | público | Retorna `{ user, token }` |
 | GET | `/auth/me` | autenticado | Usuário logado |
+| POST | `/auth/esqueci-senha` | público | Envia por e-mail o link de redefinição de senha (válido por 60 min, uso único) |
+| POST | `/auth/redefinir-senha` | público | Define a nova senha com o token do link |
 | PUT | `/usuarios/me` | autenticado | Atualiza o próprio perfil |
 | PATCH | `/usuarios/me/senha` | autenticado | Troca de senha (exige a senha atual) |
 | GET, POST | `/usuarios` | ADMIN | Lista (filtros `role`, `ativo`, `search`) e cadastra |
@@ -139,8 +143,19 @@ Na devolução com condição `DANIFICADO`, a descrição da avaria é obrigató
 - **Nova solicitação**: os administradores ativos recebem um aviso.
 - **Aprovação ou recusa**: o solicitante recebe o parecer. Isso inclui os pedidos recusados automaticamente pela RN02.
 - **Devolução pendente**: `POST /reservas/devolucoes-pendentes/notificar` avisa cada responsável. Pode ser acionado pelo painel ou por um agendador externo (cron job).
+- **Redefinição de senha**: o link de "esqueci minha senha" e a confirmação de que a senha foi alterada.
 
 Os envios acontecem depois da operação e nunca a fazem falhar. Erros vão para o log.
+
+### Configurando o Brevo
+
+O envio usa a API HTTP do Brevo (HTTPS, porta 443), que funciona mesmo onde as portas SMTP são bloqueadas.
+
+1. Crie uma conta em [brevo.com](https://www.brevo.com). O plano gratuito envia até 300 e-mails por dia.
+2. Em **Senders, Domains & Dedicated IPs → Senders**, cadastre e confirme o e-mail remetente.
+3. Em **SMTP & API → API Keys**, gere uma chave (começa com `xkeysib-`).
+4. Defina `BREVO_API_KEY` e `MAIL_FROM` (ex.: `SG2RI <seu-remetente@verificado.com>`) no `.env` ou no Render.
+5. Se aparecer o erro `unrecognised IP address` nos logs, desative o bloqueio por IP em **Security → Authorised IPs**: o Render não tem IP de saída fixo.
 
 ## Deploy no Render
 
@@ -169,7 +184,7 @@ O arquivo [`render.yaml`](render.yaml) é um Blueprint que cria três recursos n
 4. A cada inicialização, a API aplica as migrations pendentes (`prisma migrate deploy`) e roda o seed. O seed é idempotente: cria o administrador só na primeira vez.
 5. Para conferir, abra `https://sg2ri-api.onrender.com/api/health` e `.../api/docs`.
 
-Para ativar o envio de e-mails (RF06), adicione as variáveis `SMTP_*` e `MAIL_FROM` ao `sg2ri-api`. Sem elas, as notificações só aparecem nos logs.
+Para ativar o envio de e-mails (RF06 e redefinição de senha), defina `BREVO_API_KEY` e `MAIL_FROM` no `sg2ri-api` (veja [Configurando o Brevo](#configurando-o-brevo)). Sem elas, as notificações só aparecem nos logs.
 
 ### Limitações do plano gratuito
 

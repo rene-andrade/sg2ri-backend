@@ -26,3 +26,9 @@ export const ANTECEDENCIA_MIN_EQUIPAMENTO_HORAS = 24;
 
 /** Tamanho mínimo de senha em cadastros e trocas de senha. */
 export const SENHA_MIN_CARACTERES = 8;
+
+/** Validade do link de redefinição de senha enviado por e-mail. */
+export const REDEFINICAO_SENHA_VALIDADE_MINUTOS = 60;
+
+/** Intervalo mínimo entre dois pedidos de redefinição do mesmo usuário (evita spam de e-mails). */
+export const REDEFINICAO_SENHA_INTERVALO_SEGUNDOS = 60;

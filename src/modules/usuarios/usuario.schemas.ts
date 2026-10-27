@@ -3,7 +3,7 @@ import { z, zQueryBoolean, zTexto } from '../../lib/zod.js';
 import { SENHA_MIN_CARACTERES } from '../../shared/constants.js';
 
 const zEmail = () => z.string().trim().toLowerCase().pipe(z.email('Informe um e-mail válido.'));
-const zSenha = () =>
+export const zSenha = () =>
   z.string().min(SENHA_MIN_CARACTERES, `A senha deve ter no mínimo ${SENHA_MIN_CARACTERES} caracteres.`).max(72);
 const zRole = () => z.enum(Role, `Perfil inválido. Use ${Object.values(Role).join(', ')}.`);
 /** Campo textual opcional: ausente/null viram string vazia. */

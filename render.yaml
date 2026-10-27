@@ -47,6 +47,12 @@ services:
         sync: false
       - key: ADMIN_PASSWORD
         sync: false
+      # E-mails (notificações e redefinição de senha) pela API do Brevo; veja o README.
+      - key: BREVO_API_KEY
+        sync: false
+      # Remetente verificado no Brevo, ex.: SG2RI <seu-remetente@verificado.com>
+      - key: MAIL_FROM
+        sync: false
 
   - type: web
     name: sg2ri-web

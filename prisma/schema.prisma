@@ -57,8 +57,23 @@ model Usuario {
   createdAt  DateTime  @default(now()) @map("created_at")
   updatedAt  DateTime  @updatedAt @map("updated_at")
   reservas   Reserva[]
+  tokensRedefinicaoSenha TokenRedefinicaoSenha[]
 
   @@map("usuarios")
+}
+
+/// Pedido de "esqueci minha senha". Guarda só o hash (SHA-256) do token enviado por e-mail.
+model TokenRedefinicaoSenha {
+  id        String    @id @default(uuid())
+  usuarioId String    @map("usuario_id")
+  usuario   Usuario   @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique @map("token_hash")
+  expiraEm  DateTime  @map("expira_em")
+  usadoEm   DateTime? @map("usado_em")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@index([usuarioId])
+  @@map("tokens_redefinicao_senha")
 }
 
 model Item {

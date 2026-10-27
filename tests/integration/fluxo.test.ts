@@ -2,7 +2,7 @@
  * Integração ponta a ponta contra um PostgreSQL real (configurado em .env.test).
  * O banco é recriado pelo globalSetup; aqui só limpamos as tabelas.
  */
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import request from 'supertest';
 import bcrypt from 'bcryptjs';
 import { Role } from '@prisma/client';
@@ -91,6 +91,50 @@ describe.skipIf(!habilitado)('integração (PostgreSQL)', async () => {
         .send({ senhaAtual: 'senha1234', novaSenha: 'novaSenha1', confirmarSenha: 'novaSenha1' });
       expect(ok.status).toBe(204);
       tokens.aluno = await login('aluno@teste.br', 'novaSenha1');
+    });
+
+    it('redefinição de senha por e-mail: link de uso único e com validade', async () => {
+      const { notificacaoService } = await import('../../src/modules/notificacoes/notificacao.service.js');
+      const { hashTokenRedefinicao } = await import('../../src/modules/auth/auth.service.js');
+      const envioDoLink = vi.spyOn(notificacaoService, 'redefinicaoSenha');
+      const esqueci = (email: string) => request(app).post('/api/auth/esqueci-senha').send({ email });
+      const redefinir = (token: string, senha: string, confirmar = senha) =>
+        request(app).post('/api/auth/redefinir-senha').send({ token, novaSenha: senha, confirmarSenha: confirmar });
+
+      // E-mail inexistente: mesma resposta, nenhum envio.
+      expect((await esqueci('ninguem@teste.br')).status).toBe(204);
+      expect(envioDoLink).not.toHaveBeenCalled();
+
+      expect((await esqueci('PROFESSOR@teste.br')).status).toBe(204);
+      expect(envioDoLink).toHaveBeenCalledTimes(1);
+      const link = envioDoLink.mock.calls[0]![1];
+      const token = new URL(link).searchParams.get('token')!;
+      expect(link).toContain('/redefinir-senha?token=');
+
+      // Pedido repetido logo em seguida é ignorado (anti-spam).
+      await esqueci('professor@teste.br');
+      expect(envioDoLink).toHaveBeenCalledTimes(1);
+
+      expect((await redefinir(token, 'novaSenha99', 'outraSenha99')).status).toBe(400);
+      const invalido = await redefinir('token-inexistente', 'novaSenha99');
+      expect(invalido.status).toBe(422);
+      expect(invalido.body.code).toBe('TOKEN_REDEFINICAO_INVALIDO');
+
+      expect((await redefinir(token, 'novaSenha99')).status).toBe(204);
+      expect((await request(app).post('/api/auth/login').send({ email: 'professor@teste.br', password: 'senha1234' })).status).toBe(401);
+      tokens.professor = await login('professor@teste.br', 'novaSenha99');
+
+      // Uso único: o mesmo link não funciona de novo.
+      expect((await redefinir(token, 'outraSenha99')).body.code).toBe('TOKEN_REDEFINICAO_INVALIDO');
+
+      // Link expirado.
+      const professor = await prisma.usuario.findUniqueOrThrow({ where: { email: 'professor@teste.br' } });
+      await prisma.tokenRedefinicaoSenha.create({
+        data: { usuarioId: professor.id, tokenHash: hashTokenRedefinicao('expirado'), expiraEm: new Date(Date.now() - 1000) },
+      });
+      expect((await redefinir('expirado', 'outraSenha99')).body.code).toBe('TOKEN_REDEFINICAO_INVALIDO');
+
+      envioDoLink.mockRestore();
     });
 
     it('importa usuários via CSV', async () => {

@@ -166,6 +166,29 @@ export function buildOpenApiDocument() {
           erros: [401, 403],
         }),
       },
+      '/auth/esqueci-senha': {
+        post: op({
+          tag: 'Auth',
+          summary: 'Solicita a redefinição de senha por e-mail',
+          description:
+            'Envia ao usuário (se existir e estiver ativo) um link para `/redefinir-senha?token=...` no frontend, ' +
+            'válido por 60 minutos e de uso único. Responde 204 em qualquer caso, para não revelar quais e-mails ' +
+            'estão cadastrados. Pedidos repetidos em menos de 1 minuto são ignorados.',
+          publica: true,
+          body: 'EsqueciSenhaRequest',
+          resposta: { status: 204, descricao: 'Pedido recebido.' },
+        }),
+      },
+      '/auth/redefinir-senha': {
+        post: op({
+          tag: 'Auth',
+          summary: 'Define uma nova senha com o token recebido por e-mail',
+          publica: true,
+          body: 'RedefinirSenhaRequest',
+          resposta: { status: 204, descricao: 'Senha redefinida.' },
+          erros: [422],
+        }),
+      },
       '/auth/me': {
         get: op({
           tag: 'Auth',
