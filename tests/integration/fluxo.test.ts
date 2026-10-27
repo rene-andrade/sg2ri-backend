@@ -169,6 +169,24 @@ describe.skipIf(!habilitado)('integração (PostgreSQL)', async () => {
       expect(['ANTECEDENCIA_24H', 'DATA_PASSADA']).toContain(res.body.code);
     });
 
+    it('admin reserva retroativamente se o horário estava livre; demais perfis não', async () => {
+      const ontem = emDias(-1);
+      const doProfessor = await novaReserva('professor', { itemId: itens.lab, data: ontem, horaInicio: '08:00', horaFim: '10:00' });
+      expect(doProfessor.status).toBe(422);
+      expect(doProfessor.body.code).toBe('DATA_PASSADA');
+
+      const doAdmin = await novaReserva('admin', { itemId: itens.lab, data: ontem, horaInicio: '08:00', horaFim: '10:00' });
+      expect(doAdmin.status).toBe(201);
+      expect(doAdmin.body).toMatchObject({ data: ontem, status: 'PENDENTE' });
+
+      const sobreposta = await novaReserva('admin', { itemId: itens.lab, data: ontem, horaInicio: '09:00', horaFim: '11:00' });
+      expect(sobreposta.status).toBe(409);
+      expect(sobreposta.body.code).toBe('CONFLITO_HORARIO');
+
+      const equipamentoNoPassado = await novaReserva('admin', { itemId: itens.projetor, data: ontem, horaInicio: '14:00', horaFim: '15:00' });
+      expect(equipamentoNoPassado.status).toBe(201);
+    });
+
     it('RN02: professor tem prioridade sobre pedido pendente de aluno', async () => {
       const data = emDias(10);
       const doAluno = await novaReserva('aluno', { itemId: itens.projetor, data, horaInicio: '14:00', horaFim: '16:00' });

@@ -137,12 +137,20 @@ export function validarSolicitacao(params: {
     throw new BusinessRuleError('O horário de fim deve ser posterior ao horário de início.', 'HORARIO_INVALIDO');
   }
 
+  // Administradores podem registrar reservas retroativas (ex.: uso já ocorrido), por isso
+  // não se sujeitam às regras de data passada e antecedência. O horário ainda precisa estar
+  // livre: a checagem de conflitos com outras reservas vale para todos os perfis.
   const minutosAteInicio = minutosEntre(agora, { data, hora: horaInicio });
-  if (minutosAteInicio < 0) {
+  const restricoesDeData = role !== Role.ADMIN;
+  if (restricoesDeData && minutosAteInicio < 0) {
     throw new BusinessRuleError('Não é possível reservar uma data ou horário que já passou.', 'DATA_PASSADA');
   }
 
-  if (tipoItem === TipoItem.EQUIPAMENTO && minutosAteInicio < ANTECEDENCIA_MIN_EQUIPAMENTO_HORAS * 60) {
+  if (
+    restricoesDeData &&
+    tipoItem === TipoItem.EQUIPAMENTO &&
+    minutosAteInicio < ANTECEDENCIA_MIN_EQUIPAMENTO_HORAS * 60
+  ) {
     throw new BusinessRuleError(
       `Reservas de equipamentos eletrônicos exigem no mínimo ${ANTECEDENCIA_MIN_EQUIPAMENTO_HORAS} horas de antecedência.`,
       'ANTECEDENCIA_24H',

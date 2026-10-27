@@ -311,7 +311,8 @@ export function buildOpenApiDocument() {
           tag: 'Reservas',
           summary: 'Solicita uma reserva',
           description:
-            'Regras aplicadas: item ATIVO; data/hora futura; fim > início; equipamentos com 24h de antecedência; ' +
+            'Regras aplicadas: item ATIVO; data/hora futura; fim > início; equipamentos com 24h de antecedência ' +
+            '(administradores podem reservar retroativamente e sem antecedência, desde que o horário esteja livre); ' +
             'RN01 (aluno reserva sala por no máximo 2h); conflito de horário com RN02 (professor tem prioridade ' +
             'sobre pedidos pendentes de alunos em equipamentos — a reserva é criada com `prioridadeDocente: true`). ' +
             'Em conflito (409), `details.sugestoes` traz horários livres próximos no mesmo dia. ' +

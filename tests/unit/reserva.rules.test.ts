@@ -135,6 +135,30 @@ describe('validarSolicitacao', () => {
     expect(codigoDoErro(() => validarSolicitacao({ ...solicitacaoBase, data: '2026-09-09' }))).toBe('DATA_PASSADA');
   });
 
+  describe('administrador', () => {
+    const admin = { ...solicitacaoBase, role: Role.ADMIN };
+
+    it('pode reservar retroativamente', () => {
+      expect(() => validarSolicitacao({ ...admin, data: '2026-09-09' })).not.toThrow();
+      expect(() => validarSolicitacao({ ...admin, data: '2026-09-10', horaInicio: '09:00' })).not.toThrow();
+    });
+
+    it('não se sujeita à antecedência de 24h para equipamentos', () => {
+      expect(() =>
+        validarSolicitacao({ ...admin, tipoItem: TipoItem.EQUIPAMENTO, data: '2026-09-10', horaInicio: '10:30', horaFim: '11:00' }),
+      ).not.toThrow();
+    });
+
+    it('continua sujeito às demais regras', () => {
+      expect(codigoDoErro(() => validarSolicitacao({ ...admin, data: '2026-09-09', statusItem: StatusItem.INATIVO }))).toBe(
+        'ITEM_INDISPONIVEL',
+      );
+      expect(codigoDoErro(() => validarSolicitacao({ ...admin, data: '2026-09-09', horaFim: '08:00' }))).toBe(
+        'HORARIO_INVALIDO',
+      );
+    });
+  });
+
   describe('antecedência de 24h para equipamentos', () => {
     const equipamento = { ...solicitacaoBase, tipoItem: TipoItem.EQUIPAMENTO, data: '2026-09-11' };
 
